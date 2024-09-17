@@ -5,25 +5,32 @@ namespace Bubblegum\Database;
 use Bubblegum\Database\Condition;
 use Bubblegum\Database\DB;
 use Bubblegum\Database\ConditionsUnion;
+use Bubblegum\Exceptions\ModelException;
 
 class Model implements \Iterator
 {
-    protected static string $tableName;
+    protected string $tableName;
 
     protected ConditionsUnion $conditions;
 
     protected \PDOStatement $statement;
 
-    protected array|false $data;
+    public array|false $data;
 
     protected int $currentIndex;
 
     public function __construct()
-    {}
+    {
+        $this->conditions = new ConditionsUnion();
+    }
+
+    public function __get(string $columnName){
+        return $this->data[$columnName] ?? null;
+    }
 
     public static function find(int $id): Model
     {
-        return (new self())->where('id', '=', $id);
+        return (new static())->where('id', '=', $id)->get();
     }
 
     public function where(string $name, string $comparison, mixed $value): Model
@@ -31,22 +38,17 @@ class Model implements \Iterator
         $this->conditions->addCondition(new Condition($name, $comparison, $value));
         return $this;
     }
-
-    protected function findByConditions(?array $columns = null): Model
+    
+    public function get(?array $columns = null): Model
     {
-        $this->statement = DB::select(self::$tableName, $this->conditions, $columns);
+        $this->statement = DB::select($this->tableName, $this->conditions, $columns);
+        $this->statement->execute();
         return $this;
     }
 
-    public function get(): Model
+    public function fetchAll(?array $columns = null): array|false
     {
-        $this->statement = DB::select(self::$tableName, $this->conditions);
-        return $this;
-    }
-
-    public function fetchAll(): array|false
-    {
-        $this->get();
+        $this->get($columns);
         return $this->statement->fetchAll(\PDO::FETCH_ASSOC);
     }
 
